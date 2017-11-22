@@ -52,9 +52,9 @@ func createRoom(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 	if err != nil {
 		log.Fatal(err)
 	}
+	renderer.JSON(w, http.StatusCreated, chatroomID)
 }
 
-//
 func findRoomByUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	userID := ps.ByName("user_id")
 
