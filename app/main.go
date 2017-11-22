@@ -31,6 +31,9 @@ func main() {
 	router.POST("/users", createUser)
 	router.GET("/users", retrieveUsers)
 
+	router.POST("/chatrooms", createRoom)
+	router.GET("/chatrooms/:user_id", findRoomByUser)
+
 	// negroni 미들웨어 생성
 	n := negroni.Classic()
 	// negroni에 router를 핸들러로 등록
