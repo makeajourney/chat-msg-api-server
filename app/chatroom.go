@@ -1,17 +1,22 @@
 package main
 
 import (
+	"log"
 	"net/http"
-	"time"
 
 	"github.com/julienschmidt/httprouter"
-	"gopkg.in/mgo.v2/bson"
 )
 
 type Chatroom struct {
-	ID        bson.ObjectId `bson:"_id" json:"id"`
-	Users     []string      `bson:"users" json:"users"`
-	Timestamp time.Time     `bson:"ts" json:"ts"`
+	ID          int8     `json:"id"`
+	CurrentUser ChatUser `json:"user"`
+	Partner     ChatUser `json:"partner"`
+	CreatedAt   []uint8  `json:"created_at"`
+}
+
+type ChatUser struct {
+	UserID int8 `json:"user_id"`
+	Status int  `json:"status"`
 }
 
 func createRoom(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -19,35 +24,59 @@ func createRoom(w http.ResponseWriter, req *http.Request, ps httprouter.Params) 
 		renderer.JSON(w, http.StatusInternalServerError, err)
 		return
 	}
-	cr := new(Chatroom)
-	users := []string{req.PostForm.Get("user1"), req.PostForm.Get("user2")}
 
-	session := mongoSession.Copy()
-	defer session.Close()
+	user1 := req.PostForm.Get("user1")
+	user2 := req.PostForm.Get("user2")
 
-	cr.ID = bson.NewObjectId()
-	cr.Users = users
-	cr.Timestamp = time.Now()
-	c := session.DB("poc").C("chatrooms")
-
-	if err := c.Insert(cr); err != nil {
-		renderer.JSON(w, http.StatusInternalServerError, err)
-		return
+	stmt, err := db.Prepare("INSERT INTO chatrooms () VALUES ()")
+	if err != nil {
+		log.Fatal(err)
 	}
-	renderer.JSON(w, http.StatusCreated, cr)
+	rst, err := stmt.Exec()
+	if err != nil {
+		log.Fatal(err)
+	}
+	chatroomID, err := rst.LastInsertId()
+	if err != nil {
+		log.Fatal(err)
+	}
+	stmt, err = db.Prepare("INSERT INTO chatrooms_users (chatroom_id, user_id, user_status) VALUES (?, ?, ?)")
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = stmt.Exec(chatroomID, user1, false)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = stmt.Exec(chatroomID, user2, false)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
+//
 func findRoomByUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	userID := ps.ByName("user_id")
 
-	session := mongoSession.Copy()
-	defer session.Close()
-
-	var chatrooms []Chatroom
-	err := session.DB("poc").C("chatrooms").Find(bson.M{"users": userID}).Sort("-ts").All(&chatrooms)
+	rows, err := db.Query(
+		"select A.chatroom_id, A.user_id, A.user_status, B.user_id, B.user_status from chatrooms_users as A inner join chatrooms_users as B where A.chatroom_id = B.chatroom_id and A.user_id != B.user_id and A.user_id=" + userID,
+	)
 	if err != nil {
-		renderer.JSON(w, http.StatusInternalServerError, err)
-		return
+		log.Fatal(err)
+	}
+
+	chatrooms := []Chatroom{}
+	for rows.Next() {
+		var cr Chatroom
+		var u1 ChatUser
+		var u2 ChatUser
+		if err := rows.Scan(&cr.ID, &u1.UserID, &u1.Status, &u2.UserID, &u2.Status); err != nil {
+			log.Fatal(err)
+			return
+		}
+		cr.CurrentUser = u1
+		cr.Partner = u2
+		chatrooms = append(chatrooms, cr)
 	}
 	renderer.JSON(w, http.StatusOK, chatrooms)
 }

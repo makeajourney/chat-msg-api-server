@@ -1,55 +1,48 @@
 package main
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/mholt/binding"
-	"gopkg.in/mgo.v2/bson"
 )
 
 type User struct {
-	ID     bson.ObjectId `bson:"_id" json:"id"`
-	UserId string        `bson:"user_id" json:"user_id"`
-}
-
-func (u *User) FieldMap(req *http.Request) binding.FieldMap {
-	return binding.FieldMap{&u.UserId: "user_id"}
+	ID        int8    `json:"id"`
+	UserName  string  `json:"user_name"`
+	CreatedAt []uint8 `json:"created_at"`
 }
 
 func createUser(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	u := new(User)
-	errs := binding.Bind(req, u)
-	// if errs.Handle(w) {
-	// 	return
-	// }
-	if errs != nil {
-		return
-	}
-
-	session := mongoSession.Copy()
-	defer session.Close()
-
-	u.ID = bson.NewObjectId()
-	c := session.DB("poc").C("users")
-
-	if err := c.Insert(u); err != nil {
+	if err := req.ParseForm(); err != nil {
 		renderer.JSON(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	renderer.JSON(w, http.StatusCreated, u)
+	stmt, err := db.Prepare("INSERT INTO users (name) VALUES (?)")
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = stmt.Exec(req.FormValue("user_id"))
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func retrieveUsers(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	session := mongoSession.Copy()
-	defer session.Close()
-
-	var users []User
-	err := session.DB("poc").C("users").Find(nil).All(&users)
+	rows, err := db.Query("SELECT id, name, created_at FROM users")
 	if err != nil {
-		renderer.JSON(w, http.StatusInternalServerError, err)
-		return
+		panic(err.Error())
+	}
+
+	users := []User{}
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.UserName, &u.CreatedAt); err != nil {
+			log.Fatal(err)
+			return
+		}
+		users = append(users, u)
 	}
 	renderer.JSON(w, http.StatusOK, users)
 }

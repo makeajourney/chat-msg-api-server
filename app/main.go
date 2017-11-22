@@ -1,30 +1,32 @@
 package main
 
 import (
+	"database/sql"
+
+	_ "github.com/go-sql-driver/mysql"
+
 	"github.com/julienschmidt/httprouter"
 	"github.com/unrolled/render"
 	"github.com/urfave/negroni"
-
-	"gopkg.in/mgo.v2"
 )
 
 var (
-	renderer     *render.Render
-	mongoSession *mgo.Session
+	renderer *render.Render
+	db       *sql.DB
+	err      error
 )
 
 func init() {
 	renderer = render.New()
-
-	s, err := mgo.Dial("mongodb://localhost")
-	if err != nil {
-		panic(err)
-	}
-
-	mongoSession = s
 }
 
 func main() {
+	db, err = sql.Open("mysql", "root:root@/chatpoc")
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+
 	// create router
 	router := httprouter.New()
 
