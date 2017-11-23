@@ -32,9 +32,11 @@ func main() {
 
 	router.POST("/users", createUser)
 	router.GET("/users", retrieveUsers)
+	router.GET("/users/:user_id/chatrooms", findRoomByUser)
 
 	router.POST("/chatrooms", createRoom)
-	router.GET("/chatrooms/:user_id", findRoomByUser)
+	router.GET("/chatrooms/:room_id/open", openChatroom)
+	router.GET("/chatrooms/:room_id/users/:user_id/:status", joinChatroom)
 
 	// negroni 미들웨어 생성
 	n := negroni.Classic()
